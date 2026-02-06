@@ -20,6 +20,7 @@ const TRIGGERS = [
 
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.INITIAL);
+  const [view, setView] = useState<'chat' | 'dashboard'>('chat');
   const [addiction, setAddiction] = useState<AddictionData>({
     name: '', intensity: 5, initialIntensity: 5, dailyAverage: 0, unit: 'unidades',
     intensityQuestion: 'Qual o nível desse vício hoje?', frequencyQuestion: 'Qual o seu consumo diário?',
@@ -30,7 +31,6 @@ const App: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [logs, setLogs] = useState<DailyLog[]>([]);
-  const [view, setView] = useState<'chat' | 'dashboard'>('chat');
   const [pendingTriggerLog, setPendingTriggerLog] = useState<{amount: number} | null>(null);
   const [fastSelected, setFastSelected] = useState<string | null>(null);
   
@@ -60,6 +60,8 @@ const App: React.FC = () => {
       setStep(AppStep.INTENSITY);
     } catch (err) { 
       console.error(err); 
+      // Fallback em caso de erro na API
+      setStep(AppStep.INTENSITY);
     } finally { 
       setIsTyping(false); 
       setFastSelected(null);
@@ -98,7 +100,12 @@ const App: React.FC = () => {
       const res = await processChat(messages, addiction, input);
       setMessages(prev => [...prev, { role: 'model', text: res.reply + (res.psychologicalTip ? `\n\n💡 ${res.psychologicalTip}` : ''), timestamp: new Date() }]);
       if (res.usedToday) setPendingTriggerLog({ amount: res.amount || 1 });
-    } catch (err) { console.error(err); } finally { setIsTyping(false); }
+    } catch (err) { 
+      console.error(err);
+      setMessages(prev => [...prev, { role: 'model', text: "Desculpe, tive um problema de conexão. Mas estou aqui para te ouvir.", timestamp: new Date() }]);
+    } finally { 
+      setIsTyping(false); 
+    }
   };
 
   const logWithTrigger = (triggerLabel: string) => {
