@@ -26,13 +26,6 @@ export interface ReminderConfig {
   message: string;
 }
 
-export interface Trigger {
-  id: string;
-  label: string;
-  count: number;
-  icon: string;
-}
-
 export interface DailyLog {
   date: string;
   amount: number;
@@ -48,7 +41,9 @@ export interface ChatMessage {
 }
 
 export enum AppStep {
+  AUTH = 'AUTH',
   INITIAL = 'INITIAL',
+  METHODOLOGY = 'METHODOLOGY',
   INTENSITY = 'INTENSITY',
   FREQUENCY = 'FREQUENCY',
   GUIDANCE = 'GUIDANCE',

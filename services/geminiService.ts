@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AddictionData, ChatMessage, DailyLog } from "../types";
 
-// Inicialização direta conforme diretrizes
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function identifyAddiction(userInput: string): Promise<{ 
@@ -38,11 +37,8 @@ export async function identifyAddiction(userInput: string): Promise<{
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty response");
-    return JSON.parse(text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
-    console.error("Erro na identificação:", error);
     return {
       name: userInput,
       unit: "unidades",
@@ -53,40 +49,35 @@ export async function identifyAddiction(userInput: string): Promise<{
   }
 }
 
-export async function generateWeeklyAnalysis(logs: DailyLog[], addiction: AddictionData): Promise<string> {
-  try {
-    const ai = getAI();
-    const logSummary = logs.map(l => `Data: ${l.date}, Qtd: ${l.amount}, Gatilho: ${l.trigger || 'N/A'}`).join('\n');
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `Analise estes logs de recuperação de ${addiction.name}. 
-      Logs:\n${logSummary}\n
-      Estratégia: ${addiction.psychologicalStrategy}.
-      Forneça um relatório motivador curto e direto, identifique o padrão de recaída e dê uma dica prática.`,
-    });
-    return response.text || "Continue focado na sua meta diária!";
-  } catch (error) {
-    console.error("Erro no relatório:", error);
-    return "Mantenha o foco! Cada dia é uma nova vitória.";
-  }
-}
-
 export async function processChat(
   history: ChatMessage[],
   addiction: AddictionData,
-  userInput: string
-): Promise<{ reply: string; usedToday: boolean; amount?: number; psychologicalTip?: string; detectedTrigger?: string }> {
+  userInput: string,
+  daysClean: number
+): Promise<{ 
+  reply: string; 
+  usedToday: boolean; 
+  amount?: number; 
+  detectedTrigger?: string; 
+  grantBadgeId?: string;
+  shouldAdvancePhase: boolean;
+}> {
   try {
     const ai = getAI();
-    const systemPrompt = `Você é um Mentor TCC empático. Vício: ${addiction.name}. Meta diária: ${addiction.dailyAverage} ${addiction.unit}. 
-    Se o usuário relatar uso, identifique a quantidade e o gatilho. Seja breve e encorajador. 
-    Responda em JSON.`;
+    const systemPrompt = `Você é um Juiz e Mentor de Recuperação. Vício: ${addiction.name}. Meta: ${addiction.dailyAverage} ${addiction.unit}.
+    REGRAS DE RECOMPENSA:
+    - Conceda 'first_log' na primeira conversa positiva.
+    - Conceda 'streak_3' se o usuário demonstrar 3 dias de controle.
+    - Conceda 'streak_7' se o usuário demonstrar 7 dias de controle.
+    - Avance a fase (shouldAdvancePhase) se o progresso for excepcional.
+    Analise se o usuário usou a substância/vício hoje baseado no texto.
+    Seja curto, direto e empático. Responda APENAS em JSON.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [
         { role: 'user', parts: [{ text: systemPrompt }] },
-        ...history.slice(-6).map(m => ({ role: m.role, parts: [{ text: m.text }] })),
+        ...history.slice(-4).map(m => ({ role: m.role, parts: [{ text: m.text }] })),
         { role: 'user', parts: [{ text: userInput }] }
       ],
       config: {
@@ -98,22 +89,34 @@ export async function processChat(
             usedToday: { type: Type.BOOLEAN },
             amount: { type: Type.NUMBER },
             detectedTrigger: { type: Type.STRING },
-            psychologicalTip: { type: Type.STRING }
+            grantBadgeId: { type: Type.STRING },
+            shouldAdvancePhase: { type: Type.BOOLEAN }
           },
-          required: ["reply", "usedToday"]
+          required: ["reply", "usedToday", "shouldAdvancePhase"]
         }
       }
     });
 
-    const text = response.text;
-    if (!text) throw new Error("Empty chat response");
-    return JSON.parse(text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
-    console.error("Erro no chat:", error);
     return { 
-      reply: "Estou aqui com você. Como podemos manter o controle hoje?", 
-      usedToday: false,
-      psychologicalTip: "Lembre-se: um deslize não é o fim da jornada."
+      reply: "Estou aqui para te ouvir. Como foi seu controle hoje?", 
+      usedToday: false, 
+      shouldAdvancePhase: false 
     };
+  }
+}
+
+export async function generateWeeklyAnalysis(logs: DailyLog[], addiction: AddictionData): Promise<string> {
+  try {
+    const ai = getAI();
+    const logSummary = logs.map(l => `Data: ${l.date}, Qtd: ${l.amount}, Sentimento: ${l.feeling}`).join('\n');
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Analise brevemente este histórico de ${addiction.name}:\n${logSummary}\nSeja motivador e direto ao ponto.`,
+    });
+    return response.text || "Continue focado na sua meta diária!";
+  } catch (error) {
+    return "Mantenha o foco nos seus objetivos.";
   }
 }
