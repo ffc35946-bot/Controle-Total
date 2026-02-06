@@ -2,8 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AddictionData, ChatMessage, DailyLog } from "../types";
 
-// Função utilitária para obter a instância da IA de forma segura
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+// Inicialização direta conforme diretrizes
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export async function identifyAddiction(userInput: string): Promise<{ 
   name: string; 
@@ -38,14 +38,16 @@ export async function identifyAddiction(userInput: string): Promise<{
       }
     });
 
-    return JSON.parse(response.text || "{}");
+    const text = response.text;
+    if (!text) throw new Error("Empty response");
+    return JSON.parse(text);
   } catch (error) {
     console.error("Erro na identificação:", error);
     return {
       name: userInput,
-      unit: "vezes",
-      intensityQuestion: "Como está sua vontade hoje?",
-      frequencyQuestion: "Quantas vezes você usou hoje?",
+      unit: "unidades",
+      intensityQuestion: "Qual o nível desse vício hoje?",
+      frequencyQuestion: "Qual o seu consumo diário?",
       psychologicalStrategy: "Apoio Cognitivo Comportamental"
     };
   }
@@ -60,8 +62,7 @@ export async function generateWeeklyAnalysis(logs: DailyLog[], addiction: Addict
       contents: `Analise estes logs de recuperação de ${addiction.name}. 
       Logs:\n${logSummary}\n
       Estratégia: ${addiction.psychologicalStrategy}.
-      Forneça um relatório motivador curto e direto, identifique o padrão de recaída e dê uma dica prática.
-      Responda em Markdown.`,
+      Forneça um relatório motivador curto e direto, identifique o padrão de recaída e dê uma dica prática.`,
     });
     return response.text || "Continue focado na sua meta diária!";
   } catch (error) {
@@ -104,13 +105,15 @@ export async function processChat(
       }
     });
 
-    return JSON.parse(response.text || "{}");
+    const text = response.text;
+    if (!text) throw new Error("Empty chat response");
+    return JSON.parse(text);
   } catch (error) {
     console.error("Erro no chat:", error);
     return { 
-      reply: "Estou aqui com você. Como posso ajudar no seu autocontrole agora?", 
+      reply: "Estou aqui com você. Como podemos manter o controle hoje?", 
       usedToday: false,
-      psychologicalTip: "Respire fundo e lembre-se do seu 'porquê'."
+      psychologicalTip: "Lembre-se: um deslize não é o fim da jornada."
     };
   }
 }
