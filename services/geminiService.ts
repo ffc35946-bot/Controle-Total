@@ -1,9 +1,9 @@
 
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { AddictionData, ChatMessage, DailyLog } from "../types";
 
-// Inicialização com a API Key do ambiente
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Função utilitária para obter a instância da IA de forma segura
+const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
 export async function identifyAddiction(userInput: string): Promise<{ 
   name: string; 
@@ -13,6 +13,7 @@ export async function identifyAddiction(userInput: string): Promise<{
   psychologicalStrategy: string;
 }> {
   try {
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `O usuário quer superar: "${userInput}". 
@@ -37,10 +38,9 @@ export async function identifyAddiction(userInput: string): Promise<{
       }
     });
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
     console.error("Erro na identificação:", error);
-    // Fallback amigável
     return {
       name: userInput,
       unit: "vezes",
@@ -52,16 +52,22 @@ export async function identifyAddiction(userInput: string): Promise<{
 }
 
 export async function generateWeeklyAnalysis(logs: DailyLog[], addiction: AddictionData): Promise<string> {
-  const logSummary = logs.map(l => `Data: ${l.date}, Qtd: ${l.amount}, Gatilho: ${l.trigger || 'N/A'}`).join('\n');
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `Analise estes logs de recuperação de ${addiction.name}. 
-    Logs:\n${logSummary}\n
-    Estratégia: ${addiction.psychologicalStrategy}.
-    Forneça um relatório motivador curto e direto, identifique o padrão de recaída e dê uma dica prática.
-    Responda em Markdown.`,
-  });
-  return response.text || "Continue focado na sua meta diária!";
+  try {
+    const ai = getAI();
+    const logSummary = logs.map(l => `Data: ${l.date}, Qtd: ${l.amount}, Gatilho: ${l.trigger || 'N/A'}`).join('\n');
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Analise estes logs de recuperação de ${addiction.name}. 
+      Logs:\n${logSummary}\n
+      Estratégia: ${addiction.psychologicalStrategy}.
+      Forneça um relatório motivador curto e direto, identifique o padrão de recaída e dê uma dica prática.
+      Responda em Markdown.`,
+    });
+    return response.text || "Continue focado na sua meta diária!";
+  } catch (error) {
+    console.error("Erro no relatório:", error);
+    return "Mantenha o foco! Cada dia é uma nova vitória.";
+  }
 }
 
 export async function processChat(
@@ -69,11 +75,12 @@ export async function processChat(
   addiction: AddictionData,
   userInput: string
 ): Promise<{ reply: string; usedToday: boolean; amount?: number; psychologicalTip?: string; detectedTrigger?: string }> {
-  const systemPrompt = `Você é um Mentor TCC empático. Vício: ${addiction.name}. Meta diária: ${addiction.dailyAverage} ${addiction.unit}. 
-  Se o usuário relatar uso, identifique a quantidade e o gatilho. Seja breve e encorajador. 
-  Responda em JSON.`;
-
   try {
+    const ai = getAI();
+    const systemPrompt = `Você é um Mentor TCC empático. Vício: ${addiction.name}. Meta diária: ${addiction.dailyAverage} ${addiction.unit}. 
+    Se o usuário relatar uso, identifique a quantidade e o gatilho. Seja breve e encorajador. 
+    Responda em JSON.`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: [
@@ -97,8 +104,9 @@ export async function processChat(
       }
     });
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
+    console.error("Erro no chat:", error);
     return { 
       reply: "Estou aqui com você. Como posso ajudar no seu autocontrole agora?", 
       usedToday: false,
